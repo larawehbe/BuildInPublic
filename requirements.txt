@@ -1,0 +1,7 @@
+fastapi
+sqlalchemy
+uvicorn
+streamlit
+pandas
+transformers
+dotenv
