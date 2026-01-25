@@ -1,18 +1,18 @@
-# personal_trainer_agent.py
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
-import openai
-from dotenv import load_dotenv
+from openai import OpenAI
 import os
-load_dotenv()
-client = openai.OpenAI()
 
-# Initialize FastAPI app
+AI_INTEGRATIONS_OPENAI_API_KEY = os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY")
+AI_INTEGRATIONS_OPENAI_BASE_URL = os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL")
+
+client = OpenAI(
+    api_key=AI_INTEGRATIONS_OPENAI_API_KEY,
+    base_url=AI_INTEGRATIONS_OPENAI_BASE_URL
+)
+
 app = FastAPI()
 
-# ✅ Replace with your actual API key
-
-# Define data structure for user inputs
 class UserInfo(BaseModel):
     goal: str
     experience: str
@@ -21,11 +21,6 @@ class UserInfo(BaseModel):
 
 @app.post("/generate_plan/")
 async def generate_plan(user: UserInfo):
-    """
-    Basic AI Agent:
-    - Takes user's fitness info
-    - Generates a simple gym plan
-    """
     prompt = f"""
     You are a personal fitness trainer.
     Create a 1-week gym plan for someone with:
@@ -37,8 +32,10 @@ async def generate_plan(user: UserInfo):
     Return the plan as a simple, structured list (Day 1, Day 2, ...).
     """
 
+    # the newest OpenAI model is "gpt-5" which was released August 7, 2025.
+    # do not change this unless explicitly requested by the user
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )

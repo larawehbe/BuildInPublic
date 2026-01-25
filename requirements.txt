@@ -5,3 +5,7 @@ streamlit
 pandas
 transformers
 dotenv
+openai
+pydantic
+python-dotenv
+requests
