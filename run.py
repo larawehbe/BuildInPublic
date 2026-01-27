@@ -1,25 +1,4 @@
-import subprocess
-import sys
-import time
+import uvicorn
 
-backend_process = subprocess.Popen(
-    [sys.executable, "-m", "uvicorn", "api:app", "--host", "localhost", "--port", "8000"],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.STDOUT
-)
-
-time.sleep(2)
-
-frontend_process = subprocess.Popen(
-    [sys.executable, "-m", "streamlit", "run", "frontend.py", 
-     "--server.port", "5000", 
-     "--server.address", "0.0.0.0",
-     "--server.headless", "true",
-     "--browser.gatherUsageStats", "false"],
-)
-
-try:
-    frontend_process.wait()
-except KeyboardInterrupt:
-    backend_process.terminate()
-    frontend_process.terminate()
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

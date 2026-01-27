@@ -5,7 +5,7 @@ integrations = ["python_openai_ai_integrations:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["glibcLocales"]
+packages = ["glibcLocales", "mailutils"]
 
 [workflows]
 runButton = "Project"
@@ -32,13 +32,29 @@ waitForPort = 5000
 outputType = "webview"
 
 [[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
 localPort = 5000
 externalPort = 80
 
 [[ports]]
 localPort = 8000
-externalPort = 8000
+externalPort = 8081
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8501
+externalPort = 8099
 
 [deployment]
-deploymentTarget = "autoscale"
-run = ["python", "run.py"]
+run = "uvicorn main:app --host 0.0.0.0 --port 8000"
+
+[[ports]]
+localPort = 8000
+externalPort = 8081
+
