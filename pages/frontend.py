@@ -91,6 +91,8 @@ with tab_preferences:
     st.subheader("⚙️ Personal Preferences")
 
     with st.form("preferences_form"):
+        age = st.number_input("👶 Age", min_value=18, max_value=60, value=20)
+        gender = st.radio("👤 Gender", ["Male", "Female"])
         goal = st.text_input(
             "🎯 Fitness goal",
             placeholder="Build muscle, lose fat, stay fit..."
@@ -159,18 +161,18 @@ with tab_chat:
     # Display chat history
     # -------------------------------
     for msg in st.session_state.messages:
-        if msg.role == "user":
+        if msg["role"] == "user":
             with st.chat_message("user"):
                 st.markdown(
                     f"<div style='background-color:#7e57c2; padding:10px; border-radius:10px; color:black;'>"
-                    f"{msg.content}</div>",
+                    f"{msg['content']}</div>",
                     unsafe_allow_html=True
                 )
         else:
             with st.chat_message("assistant"):
                 st.markdown(
                     f"<div style='background-color:#42a5f5; padding:10px; border-radius:10px; color:black;'>"
-                    f"{msg.content}</div>",
+                    f"{msg['content']}</div>",
                     unsafe_allow_html=True
                 )
 
@@ -205,15 +207,15 @@ with tab_chat:
         # Call backend
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
+                st.write("⏳ Generating response...")
                 response = requests.post(
                     CHAT_API,
                     json={
                         "username": st.session_state.username,
-                        "message": user_input,
-                        "messages": st.session_state.messages
+                        "message": user_input
                     }
                 )
-
+                st.write(response.status_code)
                 if response.status_code == 200:
                     assistant_reply = response.json()["response"]
                 else:

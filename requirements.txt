@@ -9,3 +9,6 @@ openai
 pydantic
 python-dotenv
 requests
+groq
+langchain-core
+langchain-groq

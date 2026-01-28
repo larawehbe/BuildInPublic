@@ -33,14 +33,14 @@ if st.button("Signup"):
      st.session_state.session_id = str(uuid.uuid4())
      API_BASE = "http://localhost:8000/signup/"
      # API_BASE = "http://buildinpublic.ranaalmaaz55.repl.co/signup/"
-     response = requests.post(API_BASEE, json={"username": username, "session_id": st.session_state.session_id})
+     response = requests.post(API_BASE, json={"username": username, "session_id": st.session_state.session_id})
      if response.status_code == 200:
        if response.json()["exists"]:
          st.warning("Username already exists. Please login or choose a different username.")
        else:
          st.session_state.username = username
          st.success("Signed up successfully!")
-         st.switch_page(pages/"frontend.py")
+         st.switch_page("pages/frontend.py")
      else:
       st.error("Failed to connect to the server.")
    else:
