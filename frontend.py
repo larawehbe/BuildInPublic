@@ -62,9 +62,9 @@ st.title("💪 Your AI Personal Trainer")
 # -------------------------------
 API_BASE = "http://localhost:8000"
 # API_BASE = "https://buildinpublic.ranaalmaaz55.repl.co"
-PREFERENCES_API = f"{API_BASE}/update_preferences"
-CHAT_API = f"{API_BASE}/chat"
-HISTORY_API = f"{API_BASE}/chat_history"
+PREFERENCES_API = f"{API_BASE}/update_preferences/"
+CHAT_API = f"{API_BASE}/chat/"
+HISTORY_API = f"{API_BASE}/chat_history/"
 
 # -------------------------------
 # Session guards
