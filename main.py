@@ -10,12 +10,14 @@ from langchain_groq import ChatGroq
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableSequence
-
+from pydantic import SecretStr
 
 load_dotenv()
 key = os.getenv("GroqAPI")
+if not key:
+    raise ValueError("Groq API key not found in environment variables.")
 client = Groq(api_key=key)
-llm = ChatGroq(temperature=0.7, model="llama3-8b-8192", api_key=key)
+llm = ChatGroq(temperature=0.7, model="llama3-8b-8192", api_key=SecretStr(key))
 
 # Build LangChain memory
 def build_memory(messages: list):
@@ -145,8 +147,9 @@ def chat(data: ChatInput):
     prompt = build_prompt_template()
 
     # 4. Combine prompt and LLM into a RunnableSequence
-    chain = RunnableSequence([prompt, llm])
-
+    chain = RunnableSequence(prompt, llm)
+    if not user_preferences:
+        return {"response": "Please set your preferences first."}
     # 5. Invoke chain with context
     response = chain.invoke({
         "goal": user_preferences.preferences_json["goal"],
@@ -154,7 +157,7 @@ def chat(data: ChatInput):
         "days_per_week": user_preferences.preferences_json["days_per_week"],
         "equipment": user_preferences.preferences_json["equipment"],
         "tone": user_preferences.preferences_json["tone"],
-        "chat_history": memory.messages,  # <-- new way to access messages
+        "chat_history": memory,
         "input": data.message
     })
 
