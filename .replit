@@ -41,7 +41,6 @@ externalPort = 80
 
 [[ports]]
 localPort = 8000
-externalPort = 8081
 
 [[ports]]
 localPort = 8080
@@ -49,12 +48,7 @@ externalPort = 8080
 
 [[ports]]
 localPort = 8501
-externalPort = 8099
 
 [deployment]
-run = "uvicorn main:app --host 0.0.0.0 --port 8000"
-
-[[ports]]
-localPort = 8000
-externalPort = 8081
+run = "bash start.sh"
 
