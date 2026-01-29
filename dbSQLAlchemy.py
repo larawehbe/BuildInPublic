@@ -1,14 +1,12 @@
-# db_sqlalchemy.py
 from sqlalchemy import Column, String, DateTime, create_engine, Integer, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
-#connrct to db or create if not exists
+#connect to db or create if not exists
 engine = create_engine('sqlite:///my_database.db', echo=True)
 Base = declarative_base()
 
-# User model
 class User(Base):
     __tablename__ = "users"
 
@@ -25,13 +23,6 @@ class ChatMessage(Base):
     content = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-# class Plan(Base):
-#     __tablename__ = "plans"
-
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     username = Column(String, ForeignKey("users.username"), nullable=False)
-#     content = Column(String, nullable=False)
-#     created_at = Column(DateTime, default=datetime.utcnow)
 
 class UserPreferences(Base):
     __tablename__ = "user_preferences"
@@ -77,12 +68,7 @@ def create_chat_message(db_session, username: str, role: str, content: str):
      db_session.commit()
      db_session.refresh(chat_message)
 
-# def create_plan(db_session, username: str, session_id: str, content: str):
-#      plan = Plan(username=username, session_id=session_id, content=content)
-#      db_session.add(plan)
-#      db_session.commit()
-#      db_session.refresh(plan)
-#      return plan
+
 
 def create_user_preferences(db_session, username: str, preferences_json: str):
      user_preferences = UserPreferences(username=username, preferences_json=preferences_json)
@@ -105,7 +91,3 @@ def update_user_preferences(db_session, username: str, preferences_json: str):
 
 def get_chat_messages(db_session, username: str):
      return db_session.query(ChatMessage).filter_by(username=username).order_by(ChatMessage.created_at.asc()).all()
-
-# def get_plans(db_session, username: str):
-#      return db_session.query(Plan).filter_by(username=username).all()
-

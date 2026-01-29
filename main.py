@@ -8,11 +8,10 @@ import dbSQLAlchemy as db
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_groq import ChatGroq
 from langchain_core.runnables.history import RunnableWithMessageHistory
-# from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableSequence
 from pydantic import SecretStr
 import json
-from langchain.memory import ConversationBufferMemory
 
 load_dotenv()
 key = os.getenv("GroqAPI")
@@ -21,15 +20,15 @@ if not key:
 client = Groq(api_key=key)
 llm = ChatGroq(temperature=0.7, model="llama-3.1-8b-instant", api_key=SecretStr(key))
 
-# # Build LangChain memory
-# def build_memory(messages: list):
-#     history = [
-#         HumanMessage(content=m["content"]) if m["role"] == "user"
-#         else AIMessage(content=m["content"])
-#         for m in messages
-#     ]
+# Build LangChain memory
+def build_memory(messages: list):
+    history = [
+        HumanMessage(content=m["content"]) if m["role"] == "user"
+        else AIMessage(content=m["content"])
+        for m in messages
+    ]
 
-#     return history
+    return history
 
 
 # Build prompt template
@@ -64,6 +63,8 @@ class UserInput(BaseModel):
     days_per_week: int
     equipment: str
     tone: str
+    weight: int
+    height: int
 
 class ChatInput(BaseModel):
     username: str
@@ -76,32 +77,6 @@ class AuthInput(BaseModel):
 
 app = FastAPI()
 
-
-# @app.post("/generate_plan/")
-# def generate_plan(data: UserInput):
-#     prompt = f"""
-#     You are an expert fitness coach.
-#     Create a weekly workout plan:
-#     - Goal: {data.goal}
-#     - Experience: {data.experience}
-#     - Days/week: {data.days_per_week}
-#     - Equipment: {data.equipment}
-#     """
-#     try:
-#         response = client.chat.completions.create(
-#             model="llama3-8b-8192",
-#             messages=[{
-#                 "role": "system",
-#                 "content": "You are an expert fitness coach."
-#             }, {
-#                 "role": "user",
-#                 "content": prompt
-#             }])
-#         plan_text = response.choices[0].message.content
-#         return {"gym_plan": plan_text}
-
-#     except Exception as e:
-#         return {"error": str(e)}
 
 @app.post("/login/")
 def login(data: AuthInput):
@@ -132,7 +107,9 @@ def update_preferences(data: UserInput):
         "experience": data.experience,
         "days_per_week": data.days_per_week,
         "equipment": data.equipment,
-        "tone": data.tone
+        "tone": data.tone,
+        "weight": data.weight,
+        "height": data.height
     }
     if not db.get_user_preferences(db.session, data.username):
         db.create_user_preferences(db.session, data.username, json.dumps(preferences_json))
