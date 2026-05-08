@@ -1,11 +1,15 @@
+import os
 import streamlit as st
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(page_title="AI Personal Trainer", page_icon="💪")
 st.title("💪 Your AI Personal Trainer")
 
 # Prepare backend API URLs
-API_BASE = "http://localhost:8001"
+API_BASE = os.environ.get("API_BASE", "http://localhost:8001").rstrip("/")
 PREFERENCES_API = f"{API_BASE}/update_preferences/"
 CHAT_API = f"{API_BASE}/chat/"
 HISTORY_API = f"{API_BASE}/chat_history/"

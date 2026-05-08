@@ -1,6 +1,12 @@
+import os
 import streamlit as st
 import requests
 import uuid
+from dotenv import load_dotenv
+
+load_dotenv()
+print(f'API_BASE: {os.environ.get("API_BASE")}')  
+API_BASE = os.environ.get("API_BASE", "http://localhost:8001").rstrip("/")
 
 st.title("Login/Signup")
 username = st.text_input("Username")
@@ -12,8 +18,7 @@ if "session_id" in st.session_state and "username" in st.session_state:
 if st.button("Login"):
   if username:
     st.session_state.session_id = str(uuid.uuid4())
-    API_BASE = "http://localhost:8001/login/"
-    response = requests.post(API_BASE,
+    response = requests.post(f"{API_BASE}/login/",
                              json={
                                  "username": username,
                                  "session_id": st.session_state.session_id
@@ -35,8 +40,7 @@ if st.button("Login"):
 if st.button("Signup"):
   if username:
     st.session_state.session_id = str(uuid.uuid4())
-    API_BASE = "http://localhost:8001/signup/"
-    response = requests.post(API_BASE,
+    response = requests.post(f"{API_BASE}/signup/",
                              json={
                                  "username": username,
                                  "session_id": st.session_state.session_id
