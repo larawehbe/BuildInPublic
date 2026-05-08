@@ -5,4 +5,4 @@
 uvicorn main:app --host 0.0.0.0 --port 8000 &
 
 # Start Streamlit in the foreground (Replit will show this in the web view)
-streamlit run auth.py --server.port 8081 --server.address 0.0.0.0
+streamlit run app.py --server.port 8081 --server.address 0.0.0.0

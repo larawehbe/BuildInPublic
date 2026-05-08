@@ -13,7 +13,7 @@ HISTORY_API = f"{API_BASE}/chat_history/"
 # Check if user is logged in
 if "username" not in st.session_state or "session_id" not in st.session_state:
     st.error("⚠️ You must be logged in to access this page.")
-    st.switch_page("auth.py")
+    st.switch_page("app.py")
 
 # Prepare chat history container
 if "messages" not in st.session_state:
@@ -94,65 +94,29 @@ with tab_chat:
 
     # Display chat history
     for msg in st.session_state.messages:
-        if msg["role"] == "user":
-            with st.chat_message("user"):
-                st.markdown(
-                    f"<div style='background-color:#7e57c2; padding:10px; border-radius:10px; color:black;'>"
-                    f"{msg['content']}</div>",
-                    unsafe_allow_html=True)
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+# Chat input must live at page level (not inside a tab/container) so Streamlit
+# pins it to the bottom of the viewport.
+user_input = st.chat_input("Ask about workouts, nutrition, recovery...")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+
+    with st.spinner("Thinking..."):
+        response = requests.post(CHAT_API,
+                                 json={
+                                     "username": st.session_state.username,
+                                     "message": user_input
+                                 })
+        if response.status_code == 200:
+            assistant_reply = response.json()["response"]
         else:
-            with st.chat_message("assistant"):
-                st.markdown(
-                    f"<div style='background-color:#42a5f5; padding:10px; border-radius:10px; color:black;'>"
-                    f"{msg['content']}</div>",
-                    unsafe_allow_html=True)
+            assistant_reply = "Something went wrong."
 
-    # Chat input
-    col1, col2 = st.columns([5, 1])
-
-    with col1:
-        user_input = st.text_input(
-            "Type your message",
-            placeholder="Ask about workouts, nutrition, recovery...")
-
-    with col2:
-        send_clicked = st.button("Send ➤")
-
-    if send_clicked and user_input:
-        # Show user message
-        st.session_state.messages.append({
-            "role": "user",
-            "content": user_input
-        })
-
-        with st.chat_message("user"):
-            st.markdown(
-                f"<div style='background-color:#7e57c2; padding:10px; border-radius:10px; color:white;'>"
-                f"{user_input}</div>",
-                unsafe_allow_html=True)
-
-        # Call backend
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                st.write("⏳ Generating response...")
-                response = requests.post(CHAT_API,
-                                         json={
-                                             "username":
-                                             st.session_state.username,
-                                             "message": user_input
-                                         })
-                st.write(response.status_code)
-                if response.status_code == 200:
-                    assistant_reply = response.json()["response"]
-                else:
-                    assistant_reply = "❌ Something went wrong."
-
-                st.markdown(
-                    f"<div style='background-color:#42a5f5; padding:10px; border-radius:10px; color:white;'>"
-                    f"{assistant_reply}</div>",
-                    unsafe_allow_html=True)
-
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": assistant_reply
-        })
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": assistant_reply
+    })
+    st.rerun()

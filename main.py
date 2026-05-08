@@ -14,7 +14,7 @@ from pydantic import SecretStr
 import json
 
 load_dotenv()
-key = os.getenv("GroqAPI")
+key = os.getenv("GROQ_API")
 if not key:
     raise ValueError("Groq API key not found in environment variables.")
 client = Groq(api_key=key)
