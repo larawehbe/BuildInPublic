@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Replit
+.replit
+replit.nix
+replit.md
+BuildInPublic/
