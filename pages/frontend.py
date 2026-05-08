@@ -5,10 +5,11 @@ st.set_page_config(page_title="AI Personal Trainer", page_icon="💪")
 st.title("💪 Your AI Personal Trainer")
 
 # Prepare backend API URLs
-API_BASE = "http://localhost:8000"
+API_BASE = "http://localhost:8001"
 PREFERENCES_API = f"{API_BASE}/update_preferences/"
 CHAT_API = f"{API_BASE}/chat/"
 HISTORY_API = f"{API_BASE}/chat_history/"
+ANALYZE_API = f"{API_BASE}/analyze_image/"
 
 # Check if user is logged in
 if "username" not in st.session_state or "session_id" not in st.session_state:
@@ -83,6 +84,29 @@ with tab_preferences:
 # Second tab: Chatbot
 with tab_chat:
     st.subheader("💬 Chat with your AI Trainer")
+
+    # Image upload section
+    with st.expander("📸 Upload an exercise image for analysis"):
+        uploaded_file = st.file_uploader("Choose an exercise image", type=["jpg", "jpeg", "png", "webp"])
+
+        if uploaded_file is not None:
+            st.image(uploaded_file, caption="Uploaded image", use_container_width=True)
+
+            if st.button("🔍 Analyze Exercise"):
+                with st.spinner("Analyzing your exercise image..."):
+                    response = requests.post(
+                        ANALYZE_API,
+                        files={"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)},
+                        data={"username": st.session_state.username},
+                    )
+
+                if response.status_code == 200:
+                    analysis = response.json()["analysis"]
+                    st.session_state.messages.append({"role": "user", "content": "[Uploaded an exercise image for analysis]"})
+                    st.session_state.messages.append({"role": "assistant", "content": analysis})
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to analyze the image. Please try again.")
 
     # Load chat history from backend
     if not st.session_state.messages:

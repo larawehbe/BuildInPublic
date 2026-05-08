@@ -1,9 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
+import base64
 from groq import Groq
+from openai import OpenAI
 import dbSQLAlchemy as db
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_groq import ChatGroq
@@ -19,6 +21,11 @@ if not key:
     raise ValueError("Groq API key not found in environment variables.")
 client = Groq(api_key=key)
 llm = ChatGroq(temperature=0.7, model="llama-3.1-8b-instant", api_key=SecretStr(key))
+
+openai_key = os.getenv("OPENAI_API_KEY")
+if not openai_key:
+    raise ValueError("OpenAI API key not found in environment variables.")
+openai_client = OpenAI(api_key=openai_key)
 
 # Build LangChain memory
 def build_memory(messages: list):
@@ -175,7 +182,48 @@ def chat(data: ChatInput):
 
     return {"response": assistant_reply}
 
-    
-    
 
+@app.post("/analyze_image/")
+async def analyze_image(file: UploadFile = File(...), username: str = Form(...)):
+    image_bytes = await file.read()
+    base64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+    mime_type = file.content_type or "image/jpeg"
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "You are an expert fitness coach. Analyze this image of an exercise. "
+                            "Identify the exercise being performed, then provide:\n"
+                            "1. The name of the exercise\n"
+                            "2. The primary muscles targeted\n"
+                            "3. Step-by-step instructions on how to perform it with proper form\n"
+                            "4. Common mistakes to avoid\n"
+                            "5. Suggested sets and reps for beginners and advanced levels"
+                        ),
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{base64_image}"
+                        },
+                    },
+                ],
+            }
+        ],
+        max_tokens=1000,
+    )
+
+    analysis = response.choices[0].message.content
+
+    db.create_chat_message(db.session, username, "user", "[Uploaded an exercise image for analysis]")
+    db.create_chat_message(db.session, username, "assistant", analysis)
+
+    return {"analysis": analysis}
 

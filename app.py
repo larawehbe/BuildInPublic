@@ -12,7 +12,7 @@ if "session_id" in st.session_state and "username" in st.session_state:
 if st.button("Login"):
   if username:
     st.session_state.session_id = str(uuid.uuid4())
-    API_BASE = "http://localhost:8000/login/"
+    API_BASE = "http://localhost:8001/login/"
     response = requests.post(API_BASE,
                              json={
                                  "username": username,
@@ -35,7 +35,7 @@ if st.button("Login"):
 if st.button("Signup"):
   if username:
     st.session_state.session_id = str(uuid.uuid4())
-    API_BASE = "http://localhost:8000/signup/"
+    API_BASE = "http://localhost:8001/signup/"
     response = requests.post(API_BASE,
                              json={
                                  "username": username,
