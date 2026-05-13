@@ -1,113 +1,65 @@
-from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from dotenv import load_dotenv
-import os
+"""AI Personal Trainer FastAPI backend — routes only.
+
+Configuration lives in config.py, prompts in prompts/, schemas in schemas/,
+and helpers in helpers/. See CLAUDE.md for the architectural overview.
+"""
+
+from __future__ import annotations
+
 import base64
-from groq import Groq
-from openai import OpenAI
-import dbSQLAlchemy as db
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_groq import ChatGroq
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.runnables import RunnableSequence
-from pydantic import SecretStr
 import json
+import logging
 
-load_dotenv()
-key = os.getenv("GROQ_API")
-if not key:
-    raise ValueError("Groq API key not found in environment variables.")
-client = Groq(api_key=key)
-llm = ChatGroq(temperature=0.7, model="llama-3.1-8b-instant", api_key=SecretStr(key))
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from langchain_core.runnables import RunnableSequence
+from sqlalchemy.orm import Session
 
-openai_key = os.getenv("OPENAI_API_KEY")
-if not openai_key:
-    raise ValueError("OpenAI API key not found in environment variables.")
-openai_client = OpenAI(api_key=openai_key)
+import dbSQLAlchemy as db
+from config import (
+    OPENAI_VISION_MAX_TOKENS,
+    OPENAI_VISION_MODEL,
+    SUPPORTED_DOC_EXTENSIONS,
+    llm,
+    openai_client,
+    text_splitter,
+)
+from helpers import (
+    build_prompt,
+    extract_docx_text,
+    extract_pdf_text,
+    messages_to_history,
+    retrieve_relevant_chunks,
+    store_document_chunks,
+)
+from prompts import IMAGE_ANALYSIS_PROMPT, UPLOAD_CONFIRMATION_TEMPLATE
+from schemas import AuthInput, ChatInput, UserInput
 
-# Build LangChain memory
-def build_memory(messages: list):
-    history = [
-        HumanMessage(content=m["content"]) if m["role"] == "user"
-        else AIMessage(content=m["content"])
-        for m in messages
-    ]
-
-    return history
-
-
-# Build prompt template
-
-def build_prompt_template():
-    return ChatPromptTemplate.from_messages([
-        (
-                "system",
-                """You are an AI personal trainer.
-
-    User preferences:
-    - Goal: {goal}
-    - Experience: {experience}
-    - Days per week: {days_per_week}
-    - Equipment: {equipment}
-    - Coaching tone: {tone}
-
-    Adapt all responses to these preferences."""
-            ),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{input}")
-        ])
-
-
-
-class UserInput(BaseModel):
-    username: str
-    age: int
-    gender: str
-    goal: str
-    experience: str
-    days_per_week: int
-    equipment: str
-    tone: str
-    weight: int
-    height: int
-
-class ChatInput(BaseModel):
-    username: str
-    message: str
-
-class AuthInput(BaseModel):
-    username: str
-    session_id: str
-
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
 
 @app.post("/login/")
-def login(data: AuthInput):
-    if data.username:
-        user = db.get_user(db.session, data.username)
-        if user:
-            db.update_session(db.session, data.username, data.session_id)
-            return {"exists": True}
-        else:
-            return {"exists": False}
+def login(data: AuthInput, db_sess: Session = Depends(db.get_db)):
+    user = db.get_user(db_sess, data.username)
+    if not user:
+        return {"exists": False}
+    db.update_session(db_sess, data.username, data.session_id)
+    return {"exists": True}
+
 
 @app.post("/signup/")
-def signup(data: AuthInput):
-    if data.username:
-        user = db.get_user(db.session, data.username)
-        if user:
-            return {"exists": True}
-        else:
-            db.create_user(db.session, data.username, data.session_id)
-            return {"exists": False}
+def signup(data: AuthInput, db_sess: Session = Depends(db.get_db)):
+    if db.get_user(db_sess, data.username):
+        return {"exists": True}
+    db.create_user(db_sess, data.username, data.session_id)
+    return {"exists": False}
+
 
 @app.post("/update_preferences/")
-def update_preferences(data: UserInput):
-    preferences_json = {
+def update_preferences(data: UserInput, db_sess: Session = Depends(db.get_db)):
+    preferences_json = json.dumps({
         "age": data.age,
         "gender": data.gender,
         "goal": data.goal,
@@ -116,114 +68,122 @@ def update_preferences(data: UserInput):
         "equipment": data.equipment,
         "tone": data.tone,
         "weight": data.weight,
-        "height": data.height
-    }
-    if not db.get_user_preferences(db.session, data.username):
-        db.create_user_preferences(db.session, data.username, json.dumps(preferences_json))
+        "height": data.height,
+    })
+    if db.get_user_preferences(db_sess, data.username):
+        db.update_user_preferences(db_sess, data.username, preferences_json)
     else:
-        db.update_user_preferences(db.session, data.username, json.dumps(preferences_json))
+        db.create_user_preferences(db_sess, data.username, preferences_json)
+
 
 @app.get("/chat_history/{username}")
-def get_chat_history(username: str):
-    messages = db.get_chat_messages(db.session, username)
-    return {"messages": [
-        {"role": msg.role, "content": msg.content} for msg in messages
-    ]
-           }
+def get_chat_history(username: str, db_sess: Session = Depends(db.get_db)):
+    messages = db.get_chat_messages(db_sess, username)
+    return {"messages": [{"role": m.role, "content": m.content} for m in messages]}
 
 
 @app.post("/chat/")
-def chat(data: ChatInput):
-    print("connected to fastapi")
-    # 1. Load user preferences
-    user_preferences = db.get_user_preferences(db.session, data.username)
-    messages = db.get_chat_messages(db.session, data.username)
-    # 2. Build memory
-    print("got preferences and history")
-    memory = build_memory([
-        {"role": msg.role, "content": msg.content}
-        for msg in messages
-    ])
-    print("memory built")
-
-    # 3. Build prompt template
-    prompt = build_prompt_template()
-    print("prompt built")
-    # 4. Combine prompt and LLM into a RunnableSequence
-    chain = RunnableSequence(prompt, llm)
-    print("chain built")
+def chat(data: ChatInput, db_sess: Session = Depends(db.get_db)):
+    user_preferences = db.get_user_preferences(db_sess, data.username)
     if not user_preferences:
-        return {"response": "Please set your preferences first."}
+        raise HTTPException(status_code=400, detail="Please set your preferences first.")
 
-    preferences = json.loads(str(user_preferences.preferences_json))
-    print("Memory:", memory)
-    # 5. Invoke chain with context
+    history = messages_to_history(db.get_chat_messages(db_sess, data.username))
+    rag_context = retrieve_relevant_chunks(data.username, data.message)
+    logger.info("chat user=%s rag_applied=%s", data.username, rag_context is not None)
+
+    chain = RunnableSequence(build_prompt(rag_context), llm)
+    preferences = json.loads(user_preferences.preferences_json)
+
     response = chain.invoke({
-        "goal":
-        preferences["goal"],
-        "experience":
-        preferences["experience"],
-        "days_per_week":
-        preferences["days_per_week"],
-        "equipment":
-        preferences["equipment"],
-        "tone":
-        preferences["tone"],
-        "chat_history": memory,
-        "input": data.message
+        "goal": preferences["goal"],
+        "experience": preferences["experience"],
+        "days_per_week": preferences["days_per_week"],
+        "equipment": preferences["equipment"],
+        "tone": preferences["tone"],
+        "chat_history": history,
+        "input": data.message,
     })
-
     assistant_reply = str(response.content)
 
-    # 6. Save messages to DB
-    db.create_chat_message(db.session, data.username, "user", data.message)
-    db.create_chat_message(db.session, data.username, "assistant", assistant_reply)
-    
-
+    db.create_chat_message(db_sess, data.username, "user", data.message)
+    db.create_chat_message(db_sess, data.username, "assistant", assistant_reply)
     return {"response": assistant_reply}
 
 
 @app.post("/analyze_image/")
-async def analyze_image(file: UploadFile = File(...), username: str = Form(...)):
+async def analyze_image(
+    file: UploadFile = File(...),
+    username: str = Form(...),
+    db_sess: Session = Depends(db.get_db),
+):
     image_bytes = await file.read()
     base64_image = base64.b64encode(image_bytes).decode("utf-8")
-
     mime_type = file.content_type or "image/jpeg"
 
     response = openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "You are an expert fitness coach. Analyze this image of an exercise. "
-                            "Identify the exercise being performed, then provide:\n"
-                            "1. The name of the exercise\n"
-                            "2. The primary muscles targeted\n"
-                            "3. Step-by-step instructions on how to perform it with proper form\n"
-                            "4. Common mistakes to avoid\n"
-                            "5. Suggested sets and reps for beginners and advanced levels"
-                        ),
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime_type};base64,{base64_image}"
-                        },
-                    },
-                ],
-            }
-        ],
-        max_tokens=1000,
+        model=OPENAI_VISION_MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": IMAGE_ANALYSIS_PROMPT},
+                {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
+            ],
+        }],
+        max_tokens=OPENAI_VISION_MAX_TOKENS,
     )
+    analysis = response.choices[0].message.content or ""
 
-    analysis = response.choices[0].message.content
-
-    db.create_chat_message(db.session, username, "user", "[Uploaded an exercise image for analysis]")
-    db.create_chat_message(db.session, username, "assistant", analysis)
-
+    db.create_chat_message(db_sess, username, "user", "[Uploaded an exercise image for analysis]")
+    db.create_chat_message(db_sess, username, "assistant", analysis)
     return {"analysis": analysis}
 
+
+@app.post("/upload_document/")
+async def upload_document(
+    file: UploadFile = File(...),
+    username: str = Form(...),
+    db_sess: Session = Depends(db.get_db),
+):
+    extension = (file.filename or "").rsplit(".", 1)[-1].lower()
+    if extension not in SUPPORTED_DOC_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {extension}")
+
+    file_bytes = await file.read()
+    document_text = (
+        extract_pdf_text(file_bytes)
+        if extension == "pdf"
+        else extract_docx_text(file_bytes)
+    )
+
+    if not document_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="No text extracted from document. If your plan is inside images or a scanned PDF, RAG can't read it.",
+        )
+
+    chunks = text_splitter.split_text(document_text)
+    try:
+        store_document_chunks(username, chunks)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to embed/store chunks: {e}")
+    logger.info(
+        "upload user=%s chunks=%d text_length=%d",
+        username, len(chunks), len(document_text),
+    )
+
+    db.update_user_pdf_text(db_sess, username, document_text)
+    db.create_chat_message(
+        db_sess, username, "user",
+        f"[Uploaded a fitness plan document: {file.filename}]",
+    )
+    db.create_chat_message(
+        db_sess, username, "assistant",
+        UPLOAD_CONFIRMATION_TEMPLATE.format(filename=file.filename),
+    )
+
+    return {
+        "message": "Document uploaded and processed successfully",
+        "text_length": len(document_text),
+        "chunks_created": len(chunks),
+    }
