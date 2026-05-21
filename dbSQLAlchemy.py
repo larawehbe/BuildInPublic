@@ -31,6 +31,7 @@ class UserPreferences(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
     age = Column(Integer)
     gender = Column(String)
+    pdf_text = Column(String, nullable=True)
 
 
 # Create tables
@@ -38,7 +39,19 @@ Base.metadata.create_all(bind=engine)
 
 #Session factory to interact with db
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-session = SessionLocal()
+
+
+def get_db():
+    """FastAPI dependency that yields a per-request SQLAlchemy session.
+    A previous module-level `session = SessionLocal()` was shared across
+    requests, so a single failed transaction (e.g. a raised HTTPException
+    mid-write) wedged the session and broke every subsequent request with
+    'This transaction is closed'. Per-request sessions avoid that entirely."""
+    db_sess = SessionLocal()
+    try:
+        yield db_sess
+    finally:
+        db_sess.close()
 
 # CRUD helpers
 def get_user(db_session, username: str):
@@ -91,3 +104,12 @@ def update_user_preferences(db_session, username: str, preferences_json: str):
 
 def get_chat_messages(db_session, username: str):
      return db_session.query(ChatMessage).filter_by(username=username).order_by(ChatMessage.created_at.asc()).all()
+
+def update_user_pdf_text(db_session, username: str, pdf_text: str):
+     user_preferences = get_user_preferences(db_session, username)
+     if user_preferences:
+          user_preferences.pdf_text = pdf_text
+          db_session.commit()
+          db_session.refresh(user_preferences)
+          return user_preferences
+     return None

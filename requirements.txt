@@ -11,3 +11,7 @@ requests
 groq
 langchain-core
 langchain-groq
+pypdf
+python-docx
+chromadb
+langchain-text-splitters
